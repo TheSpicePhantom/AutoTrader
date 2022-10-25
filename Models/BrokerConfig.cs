@@ -4,15 +4,20 @@ namespace AutoTrader.Models
 {
     public class BrokerConfig
     {
-        public string accountId { get; set; }
-        public string baseUrl { get; set; }
-        public int port { get; set; }
+        public long AccountId { get; set; }
+        public string BaseUrl { get; set; }
+        public string TimeInForce { get; set; }
+        public string OrderType { get; set; }
+        public string Token { get; set; }
+
 
         public BrokerConfig(IConfigurationSection cfg)
         {
-            this.accountId  = cfg.GetValue<string>("accountId");
-            this.baseUrl    = cfg.GetValue<string>("baseUrl");
-            this.port       = cfg.GetValue<int>("port");
+            this.AccountId      = cfg.GetValue<long>("accountId");
+            this.BaseUrl        = cfg.GetValue<string>("baseUrl");
+            this.TimeInForce    = cfg.GetValue<string>("timeInForce");
+            this.OrderType      = cfg.GetValue<string>("orderType");
+            this.Token          = cfg.GetValue<string>("token");
         }
 
         public override string ToString()

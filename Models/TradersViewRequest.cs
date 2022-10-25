@@ -2,7 +2,7 @@
 {
     public class TradersViewRequest
     {
-        public bool _is_buy { get; set; }
+        public string _is_buy { get; set; }
         public Symbol _symbol { get; set; }
         public Contract _contracts { get; set; }
         public long _price { get; set; }
