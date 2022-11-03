@@ -10,11 +10,12 @@ namespace AutoTrader {
 
             // Add services to the container.
 
+            builder.Services.AddApplicationInsightsTelemetry();
+
             builder.Services.AddControllers();
             // Learn more about configuring Swagger/OpenAPI at https://aka.ms/aspnetcore/swashbuckle
             builder.Services.AddEndpointsApiExplorer();
             builder.Services.AddSwaggerGen();
-            //builder.Services.Configure<BrokerConfig>(builder.Configuration.GetSection("BrokerConfig"));
 
 
             var app = builder.Build();

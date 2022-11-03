@@ -3,66 +3,38 @@ using AutoTrader.Models;
 using Microsoft.AspNetCore.Mvc;
 using SocketIOClient;
 
+#pragma warning disable CS8618
 namespace AutoTrader.Controllers
 {
-
     [ApiController]
     [Route("[controller]")]
     public class AutoTradeController
     {
+        private const int SOCKET_CONNECTION_TRESHOLD = 20000; //ms
         private const string getInstrumentsPath = "/trading/get_instruments";
         private const string openTradePath = "/trading/open_trade";
 
-#pragma warning disable CS8618
         protected static HttpClient Client;
         protected static bool IsClientSetUp = false;
         protected static SocketIO Socket;
         protected static bool IsSocketSetUp = false;
-#pragma warning restore CS8618
 
         protected string _bearerToken;
         protected string _baseUrl;
         protected string _token;
 
-        public class InlineLogger : ILogger
-        {
-            public string message = "";
-            public IDisposable BeginScope<TState>(TState state)
-            {
-                throw new NotImplementedException();
-            }
-
-            public bool IsEnabled(LogLevel logLevel)
-            {
-                throw new NotImplementedException();
-            }
-
-            public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter)
-            {
-                this.message += $"{state}\n";
-            }
-
-            public void LogInformation(string? message, params object?[] args)
-            {
-                this.message += $"{message}\n";
-            }
-        }
-
         private BrokerConfig _config;
         private ILogger _logger;
 
-#pragma warning disable CS8618
-
-        static AutoTradeController()
+        static AutoTradeController() 
         {
             Program.ApplicationShuttingDown += Program_ApplicationShuttingDown;
             if (!IsClientSetUp) SetUpClient();
-            if (!IsSocketSetUp) SocketSetUp(null, null, null);
         }
 
-        public AutoTradeController(IConfiguration config)
+        public AutoTradeController(IConfiguration config, ILogger<AutoTradeController> logger)
         {
-            this._logger = new InlineLogger();
+            this._logger = logger;
             try
             {
                 this._config = new BrokerConfig(config.GetSection("BrokerConfig"));
@@ -78,13 +50,17 @@ namespace AutoTrader.Controllers
             if (!IsClientSetUp) SetUpClient();
             if (!IsSocketSetUp) SocketSetUp(this._baseUrl, this._token, this);
         }
-#pragma warning restore CS8618
 
         [HttpGet("ping")]
-        public ActionResult Ping()
+        public async Task<ActionResult> Ping()
         {
-            // TODO update here to return only AFTER socket initialized
-            return new OkObjectResult("pong");
+            long ms = 0;
+            while (!AutoTradeController.IsSocketSetUp && ms < SOCKET_CONNECTION_TRESHOLD)
+            {
+                await Task.Delay(250);
+                ms += 250;
+            }
+            return new OkObjectResult($"ConnectionTime: {ms}ms; SocketId: {Socket.Id}");
         }
 
         [HttpPost("trade")]
@@ -95,8 +71,6 @@ namespace AutoTrader.Controllers
                                                         this._config.TimeInForce,
                                                         data);
 
-            var converted = requestBody.ToKeyValuePairs();
-
             HttpRequestMessage request = new HttpRequestMessage()
             {
                 Method = HttpMethod.Post,
@@ -106,15 +80,19 @@ namespace AutoTrader.Controllers
             TradeOperations.SetHeaders(Client);
             HttpResponseMessage? message = await Client.SendAsync(request);
 
+            string apiResponse;
+
             if (message == null || !message.IsSuccessStatusCode)
             {
-                this._logger.LogInformation($"response: {message}");
+                apiResponse = $"response: {(message != null ? message.ToString() : "message is null")}";
+                this._logger.LogInformation(apiResponse);
             }
             else
             {
-                this._logger.LogInformation($"{await message.Content.ReadAsStringAsync()}");
+                apiResponse = await message.Content.ReadAsStringAsync();
+                this._logger.LogInformation(apiResponse);
             }
-            return new OkObjectResult(((InlineLogger)this._logger).message);
+            return new OkObjectResult(apiResponse);
         }
 
         [HttpGet("getInstruments")]
@@ -127,18 +105,20 @@ namespace AutoTrader.Controllers
             };
             TradeOperations.SetHeaders(Client);
             HttpResponseMessage? message = await Client.SendAsync(request);
+            string apiResponse;
+
             if (message == null || !message.IsSuccessStatusCode)
             {
-                this._logger.LogInformation($"response: {message}");
+                apiResponse = $"response: {(message != null ? message.ToString() : "message is null")}";
+                this._logger.LogInformation(apiResponse);
             }
             else
             {
-                return await message.Content.ReadAsStringAsync();
+                apiResponse = await message.Content.ReadAsStringAsync();
+                this._logger.LogInformation(apiResponse);
             }
-            return "";
+            return new OkObjectResult(apiResponse);
         }
-
-
 
         private static void SetUpClient()
         {
@@ -162,7 +142,6 @@ namespace AutoTrader.Controllers
             Socket.OnConnected += _this.OnSocketConnected;
             Socket.OnError += _this.OnSocketErrored;
             Socket.ConnectAsync().GetAwaiter().GetResult();
-            IsSocketSetUp = true;
         }
 
         private static async void SocketClose()
@@ -174,6 +153,7 @@ namespace AutoTrader.Controllers
         private void OnSocketErrored(object? sender, string e)
         {
             Console.WriteLine($"Socket Errored: {sender} ;{e}");
+            this._logger.LogError($"Socket Errored: {sender} ;{e}");
         }
 
         private void OnSocketConnected(object? sender, EventArgs e)
@@ -182,6 +162,9 @@ namespace AutoTrader.Controllers
             TradeOperations.SetAuthHeader(Client, this._bearerToken);
             Console.WriteLine($"connected: {Socket.Connected}.");
             Console.WriteLine($"token: {this._bearerToken}.");
+            this._logger.LogInformation($"connected: {Socket.Connected}.");
+            this._logger.LogInformation($"token: {this._bearerToken}.");
+            IsSocketSetUp = true;
         }
 
         private static void Program_ApplicationShuttingDown()

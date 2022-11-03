@@ -7,13 +7,13 @@
         public Symbol _symbol { get; set; }
         public Contract _contracts { get; set; }
         public double _price { get; set; }
-        public long _timestamp { get; set; }
+        public DateTime? _timestamp { get; set; }
         public string _comment { get; set; }
     }
 
     public class Symbol
     {
-        public long ticker { get; set; }
+        public string ticker { get; set; }
         public string exchange { get; set; }
     }
 

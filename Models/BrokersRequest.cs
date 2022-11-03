@@ -17,13 +17,12 @@
             if (reqBody._symbol == null || reqBody._symbol.exchange == null) throw new ArgumentException("error: invalid parameter _symbol/exchange");
              
             this.accountId      = accountId;
-            this.symbol         = reqBody._symbol.exchange;                     // also has a "ticker": "{{ticker}}", which is a time of the update ?
-            this.isBuy          = reqBody._is_buy == "buy";                     // if not buy then sell
-            this.amount         = reqBody._contracts.orders;                    // amount of transaction
-
-            this.orderType      = orderType;                                    // something 
-            this.timeInForce    = timeInForce;                                  // something
-            this.requestText    = reqBody._comment;                             // doesn"t really matter prob like a logging thing
+            this.symbol         = $"{reqBody._symbol.ticker}";                              // also has a "exchange": "{{exchange}}", which is a like a market or something
+            this.isBuy          = reqBody._is_buy == "buy";                                 // if not buy then sell
+            this.amount         = reqBody._contracts.orders;                                // amount of transaction
+            this.orderType      = orderType;                                                // something 
+            this.timeInForce    = timeInForce;                                              // something
+            this.requestText    = reqBody._comment;                                         // doesn"t really matter prob like a logging thing
         }
 
         public IEnumerable<KeyValuePair<string,string>> ToKeyValuePairs()
