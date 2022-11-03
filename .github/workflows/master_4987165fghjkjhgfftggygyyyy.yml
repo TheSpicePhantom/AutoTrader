@@ -55,3 +55,7 @@ jobs:
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_1254BE3585E6442AA978A2F8EE7E9060 }}
           package: .
+      - name: Ping my site
+        uses: Leocardoso94/is-my-site-up@v1.2
+        with:
+          site: ${{ steps.deploy-to-webapp.outputs.webapp-url }}/AutoTrade/ping
