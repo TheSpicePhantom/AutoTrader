@@ -1,4 +1,5 @@
 using AutoTrader.Helpers;
+using System.Diagnostics;
 
 namespace AutoTrader {
     public class Program {
@@ -23,17 +24,15 @@ namespace AutoTrader {
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
-            //if (app.Environment.IsDevelopment())
-            //{
-                app.UseSwagger();
-                app.UseSwaggerUI();
-            //}
+            if (app.Environment.IsDevelopment())
+            {
+            app.UseSwagger();
+            app.UseSwaggerUI();
+            }
 
             app.UseAuthorization();
 
             app.MapControllers();
-
-            //var options = app.Services.GetRequiredService<IOptions<BrokerConfig>>().Value;
 
             app.Run();
         }
@@ -42,6 +41,7 @@ namespace AutoTrader {
         {
             ApplicationShuttingDown?.Invoke();
             Console.WriteLine("Closing the application");
+            Task.Delay(10000);
         }
     }
 }

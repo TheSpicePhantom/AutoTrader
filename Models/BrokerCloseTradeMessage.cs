@@ -9,14 +9,11 @@
         public string OrderType { get; set; }
         public string TimeInForce { get; set; }
 
-        public BrokerCloseTradeMessage(string orderType, string timeInForce, string tradeId, double? rate, double? atMarket, TradersViewBuySellRequest reqBody)
+        public BrokerCloseTradeMessage(string orderType, string timeInForce, string tradeId, double? rate, double? atMarket, double amount)
         {
-            if (reqBody._contracts == null || reqBody._contracts.orders <= 0) throw new ArgumentException("error: invalid parameter _contracts/orders");
-            if (reqBody._symbol == null || reqBody._symbol.exchange == null) throw new ArgumentException("error: invalid parameter _symbol/exchange");
-
             this.TradeId = tradeId;
             this.Rate = rate;
-            this.Amount = reqBody._contracts.orders;
+            this.Amount = amount;
             this.AtMarket = AtMarket;
             this.OrderType = orderType;
             this.TimeInForce = timeInForce;
