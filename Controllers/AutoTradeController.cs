@@ -45,7 +45,7 @@ namespace AutoTrader.Controllers
             return new OkObjectResult(await this._operator.CloseTrade(data));
         }
 
-        [HttpPost("trade-close")]
+        [HttpPost("trade-multiclose")]
         public async Task<IActionResult> TradeClose([FromBody] CloseTradeMultipleRequest data)
         {
             return new OkObjectResult(await this._operator.CloseTrade(data));

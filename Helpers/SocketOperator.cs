@@ -5,7 +5,7 @@ using System.Net.Http.Headers;
 
 namespace AutoTrader.Helpers
 {
-    public sealed class SocketOperator
+    public sealed class SocketOperator : IDisposable
     {
         private enum ResponseType
         {
@@ -40,8 +40,6 @@ namespace AutoTrader.Helpers
 #pragma warning disable CS8618
         public SocketOperator(IConfiguration config, ILogger<SocketOperator> logger)
         {
-            Program.ApplicationShuttingDown += Program_ApplicationShuttingDown;
-
             this._logger = logger;
             this._config = config.GetSection("BrokerConfig");
 
@@ -161,7 +159,7 @@ namespace AutoTrader.Helpers
             return await HandleBrokersResponse(message);
         }
 
-        public async Task<OpenCloseTradeResponse> GetInstruments()
+        public async Task<string> GetInstruments()
         {
             HttpRequestMessage request = new HttpRequestMessage()
             {
@@ -171,7 +169,19 @@ namespace AutoTrader.Helpers
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
-            return await HandleBrokersResponse(message);
+            string apiResponse;
+            if (message == null || !message.IsSuccessStatusCode || message.Content == null)
+            {
+                apiResponse = $"request failed: {message}";
+                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
+            }
+            else
+            {
+                apiResponse = await message.Content.ReadAsStringAsync();
+                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
+            }
+
+            return apiResponse;
         }
 
         private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message)
@@ -248,10 +258,10 @@ namespace AutoTrader.Helpers
             this.Socket.ConnectAsync().GetAwaiter().GetResult();
         }
 
-        private async void SocketClose()
+        private void SocketClose()
         {
-            await this.Socket.DisconnectAsync();
-            Console.WriteLine("Socket closed.");
+            this.Socket.DisconnectAsync().GetAwaiter().GetResult();
+            this._logger.LogInformation("Socket closed.");
         }
 
         public void SetHeaders()
@@ -287,7 +297,6 @@ namespace AutoTrader.Helpers
 
         private void OnSocketErrored(object? sender, string e)
         {
-            Console.WriteLine($"Socket Errored: {sender} ;{e}");
             this._logger.LogError($"Socket Errored: {sender} ;{e}");
         }
 
@@ -295,8 +304,6 @@ namespace AutoTrader.Helpers
         {
             this.BearerToken = $"{Socket.Id}{this.Token}";
             SetAuthHeader();
-            Console.WriteLine($"connected: {this.Socket.Connected}.");
-            Console.WriteLine($"token: {this.BearerToken}.");
             this._logger.LogInformation($"connected: {this.Socket.Connected}.");
             this._logger.LogInformation($"token: {this.BearerToken}.");
             this.IsSocketSetUp = true;
@@ -304,12 +311,11 @@ namespace AutoTrader.Helpers
 
         private void OnSocketDisconnected(object? sender, string e)
         {
-            Console.WriteLine($"Socket Disconnected: {sender} ;{e}");
-            this._logger.LogError($"Socket Disconnected: {sender} ;{e}");
+            this._logger.LogInformation($"Socket Disconnected: {sender} ;{e}");
             if (this.IsRunning) SocketSetUp();
         }
 
-        private void Program_ApplicationShuttingDown()
+        public void Dispose()
         {
             this.IsRunning = false;
             SocketClose();

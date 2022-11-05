@@ -36,13 +36,6 @@ namespace AutoTrader {
 
             app.Run();
         }
-
-        static void OnProcessExit(object sender, EventArgs e)
-        {
-            ApplicationShuttingDown?.Invoke();
-            Console.WriteLine("Closing the application");
-            Task.Delay(10000);
-        }
     }
 }
 
