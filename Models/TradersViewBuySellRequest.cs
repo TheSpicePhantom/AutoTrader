@@ -1,7 +1,7 @@
 ﻿namespace AutoTrader.Models
 {
 #pragma warning disable CS8618
-    public class TradersViewRequest
+    public class TradersViewBuySellRequest
     {
         public string _is_buy { get; set; }
         public Symbol _symbol { get; set; }
