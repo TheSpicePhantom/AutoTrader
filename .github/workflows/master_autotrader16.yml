@@ -55,13 +55,3 @@ jobs:
           slot-name: 'Production'
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_892AAD8B332A473DAB92FDA6FA054DBD }}
           package: .
-          
-      - name: cURL AxiosJS
-        uses: indiesdev/curl@v1.1
-        with:
-          url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}/AutoTrade/ping
-          accept: 200,201,204
-          timeout: 10000
-          log-response: true
-          # retries number
-          retries: 3
