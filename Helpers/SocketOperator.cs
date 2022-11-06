@@ -1,7 +1,9 @@
 ﻿using AutoTrader.Models;
+using Microsoft.AspNetCore.Mvc.Routing;
 using Newtonsoft.Json;
 using SocketIOClient;
 using System.Net.Http.Headers;
+using System.Xml.Linq;
 
 namespace AutoTrader.Helpers
 {
@@ -66,7 +68,7 @@ namespace AutoTrader.Helpers
             if (transaction == null)
             {
                 response = await OpenTrade(data);
-                if (!response.response.executed) return response;
+                if (!response.response.executed || response.data == null ) return response;
 
                 AddTransaction(name, isBuy, response.data.orderId, amount);
             }
@@ -77,8 +79,19 @@ namespace AutoTrader.Helpers
 
                 foreach (var t in toClose)
                 {
-                    var closeTradeResp = await CloseTrade(t.Key, t.Value);
-                    transactionsClosed.Add(closeTradeResp.data.orderId, closeTradeResp.response.executed);
+                    OpenCloseTradeResponse closeTradeResp = await CloseTrade(t.Key, t.Value);
+
+                    string orderId = t.Key;
+                    bool isExecuted = false;
+                    if (closeTradeResp != null
+                        && closeTradeResp.data != null
+                        && closeTradeResp.data.orderId != null)
+                    {
+                        orderId = closeTradeResp.data.orderId;
+                        isExecuted = closeTradeResp.response.executed;
+                    }
+                    RemoveTransaction(orderId, name, !isBuy);
+                    transactionsClosed.Add(orderId, isExecuted);
                 }
 
                 OpenCloseTradeResponse openTradeResp = await OpenTrade(data);
@@ -134,8 +147,17 @@ namespace AutoTrader.Helpers
 
             foreach (var t in data.tradeIdAmountPairs)
             {
-                var closeTradeResp = await CloseTrade(t.Key, t.Value);
-                transactionsClosed.Add(closeTradeResp.data.orderId, closeTradeResp.response.executed);
+                OpenCloseTradeResponse closeTradeResp = await CloseTrade(t.Key, t.Value);
+                string orderId = t.Key;
+                bool executed = false;
+                if(closeTradeResp != null 
+                    && closeTradeResp.data != null
+                    && closeTradeResp.data.orderId != null)
+                {
+                    orderId = closeTradeResp.data.orderId;
+                    executed = closeTradeResp.response.executed;
+                }
+                transactionsClosed.Add(orderId, executed);
             }
             
             return PrepareOpenCloseTradeResponse(true, -2, "-2", $"closedTransactions: {JsonConvert.SerializeObject(transactionsClosed)}");
@@ -152,6 +174,8 @@ namespace AutoTrader.Helpers
                 RequestUri = new Uri($"{this.BaseUrl}{CLOSE_TRADE_PATH}"),
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
+
+            RemoveTransaction(tradeId);
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -173,30 +197,12 @@ namespace AutoTrader.Helpers
             if (message == null || !message.IsSuccessStatusCode || message.Content == null)
             {
                 apiResponse = $"request failed: {message}";
-                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
             }
             else
             {
                 apiResponse = await message.Content.ReadAsStringAsync();
-                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
-            }
-
-            return apiResponse;
-        }
-
-        private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message)
-        {
-            OpenCloseTradeResponse apiResponse;
-            if (message == null || !message.IsSuccessStatusCode || message.Content == null)
-            {
-                apiResponse = PrepareErrorMessage(message);
-                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
-            }
-            else
-            {
-                OpenCloseTradeResponse? deserializedTemp = JsonConvert.DeserializeObject<OpenCloseTradeResponse>(await message.Content.ReadAsStringAsync());
-                apiResponse = deserializedTemp == null ? PrepareErrorMessage(message) : deserializedTemp;
-                this._logger.LogInformation(JsonConvert.SerializeObject(apiResponse));
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
             }
 
             return apiResponse;
@@ -207,9 +213,29 @@ namespace AutoTrader.Helpers
             return this.Transactions.FirstOrDefault(x => x.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
         }
 
+        private OpenTransaction? GetTransactionById(string id, out bool? isBuy)
+        {
+            foreach ( var transaction in this.Transactions)
+            {
+                if (transaction.SellOrders.ContainsKey(id))
+                {
+                    isBuy = false;
+                    return transaction;
+                }
+                if (transaction.BuyOrders.ContainsKey(id))
+                {
+                    isBuy = true;
+                    return transaction;
+                }
+            }
+
+            isBuy = null;
+            return null;
+        }
+
         private void AddTransaction(string name, bool isBuy, string orderId, double amount)
         {
-            var existingTransaction = GetTransaction(name);
+            OpenTransaction? existingTransaction = GetTransaction(name);
             if (existingTransaction == null) 
             {
                 if (isBuy) this.Transactions.Add(new OpenTransaction(name, new() { { orderId, amount } }, new()));
@@ -222,6 +248,48 @@ namespace AutoTrader.Helpers
             }
         }
 
+        private void RemoveTransaction(string orderId, string? name = null, bool? isBuy = null)
+        {
+            OpenTransaction? existingTransaction;
+
+            if (string.IsNullOrWhiteSpace(name) || !isBuy.HasValue)
+            {
+                existingTransaction = GetTransactionById(orderId, out isBuy);
+            }
+            else
+            {
+                existingTransaction = GetTransaction(name);
+            }
+
+            if (existingTransaction == null || !isBuy.HasValue)
+            {
+                return;
+            }
+            else
+            {
+                if (isBuy.Value) existingTransaction.BuyOrders.Remove(orderId);
+                else existingTransaction.SellOrders.Remove(orderId);
+            }
+        }
+
+        private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message, string additionalInfo = "")
+        {
+            OpenCloseTradeResponse apiResponse;
+            if (message == null || !message.IsSuccessStatusCode || message.Content == null)
+            {
+                apiResponse = PrepareErrorMessage(message);
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)};\n{additionalInfo}");
+            }
+            else
+            {
+                OpenCloseTradeResponse? deserializedTemp = JsonConvert.DeserializeObject<OpenCloseTradeResponse>(await message.Content.ReadAsStringAsync());
+                apiResponse = deserializedTemp == null ? PrepareErrorMessage(message) : deserializedTemp;
+                this._logger.LogInformation($"{JsonConvert.SerializeObject(apiResponse)};\n{ additionalInfo}");
+            }
+
+            return apiResponse;
+        }
+
         private OpenCloseTradeResponse PrepareErrorMessage(HttpResponseMessage? message)
         {
             return PrepareOpenCloseTradeResponse(false, -1, "-1", message != null ? message.ToString() : "message is null");
@@ -229,8 +297,8 @@ namespace AutoTrader.Helpers
 
         private OpenCloseTradeResponse PrepareOpenCloseTradeResponse(bool executed, int type, string transactionId, string message)
         {
-            return new OpenCloseTradeResponse(new OCTR_Response(executed),
-                    new OCTR_Data(type, transactionId, message));
+            return new OpenCloseTradeResponse(new OCTR_Response(executed, message),
+                    new OCTR_Data(type, transactionId));
         }
 
         private void SetUpClient()
