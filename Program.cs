@@ -1,12 +1,8 @@
 using AutoTrader.Helpers;
-using System.Diagnostics;
 
 namespace AutoTrader {
-    public class Program {
-
-        public delegate void AppShutdown();
-        public static event AppShutdown? ApplicationShuttingDown;
-
+    public class Program 
+    {
         public static void Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);

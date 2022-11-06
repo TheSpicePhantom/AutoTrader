@@ -9,15 +9,10 @@ namespace AutoTrader.Controllers
     public class AutoTradeController
     {
         private const int SOCKET_CONNECTION_TRESHOLD = 20000; //ms
-
-        private ILogger _logger;
-
         private SocketOperator _operator;
 
-
-        public AutoTradeController(ILogger<AutoTradeController> logger, SocketOperator socketOperator)
+        public AutoTradeController(SocketOperator socketOperator)
         {
-            this._logger = logger;
             this._operator = socketOperator;
         }
 
@@ -35,19 +30,22 @@ namespace AutoTrader.Controllers
 
         [HttpPost("trade-open")]
         public async Task<IActionResult> Trade([FromBody] TradersViewBuySellRequest data)
-        {            
+        {
+            await Ping();
             return new OkObjectResult(await this._operator.OpenTrade(data));
         }
 
         [HttpPost("trade-close")]
         public async Task<IActionResult> TradeClose([FromBody] CloseTradeRequest data)
         {
+            await Ping();
             return new OkObjectResult(await this._operator.CloseTrade(data));
         }
 
         [HttpPost("trade-multiclose")]
         public async Task<IActionResult> TradeClose([FromBody] CloseTradeMultipleRequest data)
         {
+            await Ping();
             return new OkObjectResult(await this._operator.CloseTrade(data));
         }
 
@@ -55,6 +53,7 @@ namespace AutoTrader.Controllers
         [HttpPost("trade-hedge")]
         public async Task<IActionResult> TradeHedge([FromBody] TradersViewBuySellRequest data)
         {
+            await Ping();
             return new OkObjectResult(await this._operator.OpenHedgeTransaction(data));
         }
 
@@ -67,6 +66,7 @@ namespace AutoTrader.Controllers
         [HttpGet("getInstruments")]
         public async Task<object> GetInstruments()
         {
+            await Ping();
             return new OkObjectResult(await this._operator.GetInstruments());
         }
     }
