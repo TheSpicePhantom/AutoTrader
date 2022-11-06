@@ -56,7 +56,12 @@ jobs:
           publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_892AAD8B332A473DAB92FDA6FA054DBD }}
           package: .
           
-      - name: Ping my site
-        uses: Leocardoso94/is-my-site-up@v1.2
+      - name: cURL AxiosJS
+        uses: indiesdev/curl@v1.1
         with:
-          site: ${{ steps.deploy-to-webapp.outputs.webapp-url }}/AutoTrade/ping
+          url: ${{ steps.deploy-to-webapp.outputs.webapp-url }}/AutoTrade/ping
+          accept: 200,201,204
+          timeout: 10000
+          log-response: true
+          # retries number
+          retries: 3
