@@ -49,6 +49,19 @@ namespace AutoTrader.Controllers
             return new OkObjectResult(await this._operator.CloseTrade(data));
         }
 
+        [HttpGet("close-all-symbol")]
+        public async Task<IActionResult> CloseAllForSymbol(string symbol)
+        {
+            await Ping();
+            return new OkObjectResult(await this._operator.CloseAllForSymbol(symbol));
+        }
+
+        [HttpPost("close-all-symbol")]
+        public async Task<IActionResult> CloseAllForSymbolPost([FromBody] string symbol)
+        {
+            await Ping();
+            return new OkObjectResult(await this._operator.CloseAllForSymbol(symbol));
+        }
 
         [HttpPost("trade-hedge")]
         public async Task<IActionResult> TradeHedge([FromBody] TradersViewBuySellRequest data)

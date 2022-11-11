@@ -1,14 +1,14 @@
 ﻿using AutoTrader.Models;
-using Microsoft.AspNetCore.Mvc.Routing;
 using Newtonsoft.Json;
 using SocketIOClient;
 using System.Net.Http.Headers;
-using System.Xml.Linq;
 
 namespace AutoTrader.Helpers
 {
     public sealed class SocketOperator : IDisposable
     {
+#pragma warning disable CA2254
+
         private enum ResponseType
         {
             AllCorrect = 200,
@@ -22,6 +22,7 @@ namespace AutoTrader.Helpers
         private const string GET_INSTRUMENTS_PATH = "/trading/get_instruments";
         private const string OPEN_TRADE_PATH = "/trading/open_trade";
         private const string CLOSE_TRADE_PATH = "/trading/close_trade";
+        private const string CLOSE_ALL_FOR_SYMBOL_PATH = "/trading/close_all_for_symbol";
 
         public bool IsRunning { get; private set; } = true;
         public bool IsClientSetUp { get; private set; } = false;
@@ -124,7 +125,7 @@ namespace AutoTrader.Helpers
             BrokerOpenTradeMessage requestBody = new(this.AccountId.ToString(), this.OrderType,
                                                         this.TimeInForce, data);
 
-            HttpRequestMessage request = new HttpRequestMessage()
+            HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Post,
                 RequestUri = new Uri($"{this.BaseUrl}{OPEN_TRADE_PATH}"),
@@ -168,7 +169,7 @@ namespace AutoTrader.Helpers
             BrokerCloseTradeMessage requestBody = new(this.OrderType, this.TimeInForce, 
                                                         tradeId, null, null, amount);
 
-            HttpRequestMessage request = new HttpRequestMessage()
+            HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Post,
                 RequestUri = new Uri($"{this.BaseUrl}{CLOSE_TRADE_PATH}"),
@@ -183,9 +184,28 @@ namespace AutoTrader.Helpers
             return await HandleBrokersResponse(message);
         }
 
+        public async Task<OpenCloseTradeResponse> CloseAllForSymbol(string symbol)
+        {
+            BrokerCloseAllForSymbolMessage requestBody = new(this.AccountId, symbol, this.OrderType, this.TimeInForce);
+
+            HttpRequestMessage request = new()
+            {
+                Method = HttpMethod.Post,
+                RequestUri = new Uri($"{this.BaseUrl}{CLOSE_ALL_FOR_SYMBOL_PATH}"),
+                Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
+            };
+
+            RemoveTransactionBySymbol(symbol);
+
+            SetHeaders();
+            HttpResponseMessage? message = await this.Client.SendAsync(request);
+
+            return await HandleBrokersResponse(message);
+        }
+
         public async Task<string> GetInstruments()
         {
-            HttpRequestMessage request = new HttpRequestMessage()
+            HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Get,
                 RequestUri = new Uri($"{this.BaseUrl}{GET_INSTRUMENTS_PATH}"),
@@ -272,6 +292,17 @@ namespace AutoTrader.Helpers
             }
         }
 
+        private void RemoveTransactionBySymbol(string name)
+        {
+            OpenTransaction? existingTransaction = GetTransaction(name);
+            if (existingTransaction != null)
+            {
+                existingTransaction.BuyOrders.Clear();
+                existingTransaction.SellOrders.Clear();
+                this.Transactions.Remove(existingTransaction);
+            }            
+        }
+
         private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message, string additionalInfo = "")
         {
             OpenCloseTradeResponse apiResponse;
@@ -283,19 +314,19 @@ namespace AutoTrader.Helpers
             else
             {
                 OpenCloseTradeResponse? deserializedTemp = JsonConvert.DeserializeObject<OpenCloseTradeResponse>(await message.Content.ReadAsStringAsync());
-                apiResponse = deserializedTemp == null ? PrepareErrorMessage(message) : deserializedTemp;
+                apiResponse = deserializedTemp ?? PrepareErrorMessage(message);
                 this._logger.LogInformation($"{JsonConvert.SerializeObject(apiResponse)};\n{ additionalInfo}");
             }
 
             return apiResponse;
         }
 
-        private OpenCloseTradeResponse PrepareErrorMessage(HttpResponseMessage? message)
+        private static OpenCloseTradeResponse PrepareErrorMessage(HttpResponseMessage? message)
         {
             return PrepareOpenCloseTradeResponse(false, -1, "-1", message != null ? message.ToString() : "message is null");
         }
 
-        private OpenCloseTradeResponse PrepareOpenCloseTradeResponse(bool executed, int type, string transactionId, string message)
+        private static OpenCloseTradeResponse PrepareOpenCloseTradeResponse(bool executed, int type, string transactionId, string message)
         {
             return new OpenCloseTradeResponse(new OCTR_Response(executed, message),
                     new OCTR_Data(type, transactionId));
@@ -388,5 +419,6 @@ namespace AutoTrader.Helpers
             this.IsRunning = false;
             SocketClose();
         }
+#pragma warning restore CA2254 
     }
 }
