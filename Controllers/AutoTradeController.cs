@@ -63,24 +63,18 @@ namespace AutoTrader.Controllers
             return new OkObjectResult(await this._operator.CloseAllForSymbol(symbol));
         }
 
-        [HttpPost("trade-hedge")]
-        public async Task<IActionResult> TradeHedge([FromBody] TradersViewBuySellRequest data)
-        {
-            await Ping();
-            return new OkObjectResult(await this._operator.OpenHedgeTransaction(data));
-        }
-
-        [HttpGet("trade-list-active")]
-        public IActionResult TradeListActive()
-        {
-            return new OkObjectResult(this._operator.Transactions);
-        }
-
         [HttpGet("getInstruments")]
         public async Task<object> GetInstruments()
         {
             await Ping();
             return new OkObjectResult(await this._operator.GetInstruments());
+        }
+
+        [HttpGet("trade-list-active")]
+        public async Task<IActionResult> TradeListActive()
+        {
+            await Ping();
+            return new OkObjectResult(await this._operator.GetOpenPositionSnapshot());
         }
     }
 }

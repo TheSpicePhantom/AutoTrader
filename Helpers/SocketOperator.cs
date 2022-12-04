@@ -19,15 +19,17 @@ namespace AutoTrader.Helpers
             CreateFailedClosePartiallyFailed = 303,
         }
 
-        private const string GET_INSTRUMENTS_PATH = "/trading/get_instruments";
-        private const string OPEN_TRADE_PATH = "/trading/open_trade";
-        private const string CLOSE_TRADE_PATH = "/trading/close_trade";
-        private const string CLOSE_ALL_FOR_SYMBOL_PATH = "/trading/close_all_for_symbol";
+        private const string GET_INSTRUMENTS_PATH       = "/trading/get_instruments";
+        private const string OPEN_TRADE_PATH            = "/trading/open_trade";
+        private const string CLOSE_TRADE_PATH           = "/trading/close_trade";
+        private const string CLOSE_ALL_FOR_SYMBOL_PATH  = "/trading/close_all_for_symbol";
+        private const string GET_OPEN_POSITIONS_PATH    = "/trading/get_model/?models=OpenPosition";
+
+        private readonly string HedgeDifferentiator     = "HEDGE";
 
         public bool IsRunning { get; private set; } = true;
         public bool IsClientSetUp { get; private set; } = false;
         public bool IsSocketSetUp { get; private set; } = false;
-        public List<OpenTransaction> Transactions { get; private set; } = new();
         public HttpClient Client { get; private set; }
         public SocketIO Socket { get; private set; }
         public string BearerToken { get; private set; }
@@ -35,7 +37,7 @@ namespace AutoTrader.Helpers
         public string BaseUrl { get; private set; }
         public string AccountId  { get; private set; } 
         public string OrderType  { get; private set; } 
-        public string TimeInForce  { get; private set; } 
+        public string TimeInForce  { get; private set; }
 
         private readonly IConfiguration _config;
         private readonly ILogger _logger;
@@ -51,90 +53,19 @@ namespace AutoTrader.Helpers
             this.AccountId = this._config.GetValue<string>("accountId");
             this.OrderType = this._config.GetValue<string>("orderType");
             this.TimeInForce = this._config.GetValue<string>("timeInForce");
+            this.HedgeDifferentiator = this._config.GetValue<string>("HedgeDifferentiator");
 
             SetUpClient();
             SocketSetUp();
         }
 #pragma warning restore CS8618
 
-        public async Task<OpenCloseTradeResponse> OpenHedgeTransaction(TradersViewBuySellRequest data)
+        public async Task<OpenCloseTradeResponse> OpenTrade(TradersViewBuySellRequest data)
         {
-            string name = data._symbol.ticker;
-            bool isBuy = data._is_buy == "buy";
-            double amount = data._contracts.orders;
-
-            OpenTransaction? transaction = GetTransaction(name);
-            OpenCloseTradeResponse response;
-
-            if (transaction == null)
-            {
-                response = await OpenTrade(data);
-                if (!response.response.executed || response.data == null ) return response;
-
-                AddTransaction(name, isBuy, response.data.orderId, amount);
-            }
+            if (data._is_hedge)
+                return await OpenHedgeTransaction(data);
             else
-            {
-                Dictionary<string, double> toClose = isBuy ? transaction.SellOrders : transaction.BuyOrders;
-                Dictionary<string, bool> transactionsClosed = new();
-
-                foreach (var t in toClose)
-                {
-                    OpenCloseTradeResponse closeTradeResp = await CloseTrade(t.Key, t.Value);
-
-                    string orderId = t.Key;
-                    bool isExecuted = false;
-                    if (closeTradeResp != null
-                        && closeTradeResp.data != null
-                        && closeTradeResp.data.orderId != null)
-                    {
-                        orderId = closeTradeResp.data.orderId;
-                        isExecuted = closeTradeResp.response.executed;
-                    }
-                    RemoveTransaction(orderId, name, !isBuy);
-                    transactionsClosed.Add(orderId, isExecuted);
-                }
-
-                OpenCloseTradeResponse openTradeResp = await OpenTrade(data);
-                string openTransactionId = "-1";
-
-                if (openTradeResp.response.executed) 
-                {
-                    openTransactionId = openTradeResp.data.orderId;
-                    AddTransaction(name, isBuy, openTransactionId, amount);
-                }
-                
-                bool allCloseExecuted = transactionsClosed.All(x => x.Value);
-                bool anyCloseExecuted = transactionsClosed.Any(x => x.Value);
-                bool executed = openTradeResp.response.executed || allCloseExecuted;
-                ResponseType responseCode = openTradeResp.response.executed
-                    ? allCloseExecuted ? ResponseType.AllCorrect : anyCloseExecuted
-                        ? ResponseType.CreateCorrectClosePartiallyFailed : ResponseType.CreateCorrectCloseFailed
-                    : allCloseExecuted ? ResponseType.CreateFailedCloseCorrect : allCloseExecuted
-                        ? ResponseType.CreateFailedClosePartiallyFailed : ResponseType.AllFailed;
-                string ct = $"closedTransactions: {JsonConvert.SerializeObject(transactionsClosed)}";
-
-                response = PrepareOpenCloseTradeResponse(executed, (int)responseCode, openTransactionId, ct);                
-            }
-
-            return response;
-        }
-
-        public async Task<OpenCloseTradeResponse> OpenTrade(TradersViewBuySellRequest data) 
-        {
-            BrokerOpenTradeMessage requestBody = new(this.AccountId.ToString(), this.OrderType,
-                                                        this.TimeInForce, data);
-
-            HttpRequestMessage request = new()
-            {
-                Method = HttpMethod.Post,
-                RequestUri = new Uri($"{this.BaseUrl}{OPEN_TRADE_PATH}"),
-                Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
-            };
-            SetHeaders();
-            HttpResponseMessage? message = await this.Client.SendAsync(request);
-
-            return await HandleBrokersResponse(message);
+                return await OpenRegularTrade(data);
         }
 
         public async Task<OpenCloseTradeResponse> CloseTrade(CloseTradeRequest data)
@@ -176,8 +107,6 @@ namespace AutoTrader.Helpers
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
 
-            RemoveTransaction(tradeId);
-
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
@@ -194,8 +123,6 @@ namespace AutoTrader.Helpers
                 RequestUri = new Uri($"{this.BaseUrl}{CLOSE_ALL_FOR_SYMBOL_PATH}"),
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
-
-            RemoveTransactionBySymbol(symbol);
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -228,79 +155,99 @@ namespace AutoTrader.Helpers
             return apiResponse;
         }
 
-        private OpenTransaction? GetTransaction(string name)
+        public async Task<SnapshotResponse> GetOpenPositionSnapshot()
         {
-            return this.Transactions.FirstOrDefault(x => x.Name.Equals(name, StringComparison.InvariantCultureIgnoreCase));
+            HttpRequestMessage request = new()
+            {
+                Method = HttpMethod.Get,
+                RequestUri = new Uri($"{this.BaseUrl}{GET_OPEN_POSITIONS_PATH}"),
+            };
+            SetHeaders();
+            HttpResponseMessage? message = await this.Client.SendAsync(request);
+
+            SnapshotResponse apiResponse;
+            if (message == null || !message.IsSuccessStatusCode || message.Content == null)
+            {
+                apiResponse = new(null, $"request failed: {message}");
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
+            }
+            else
+            {
+                Snapshot? deserializedTemp = JsonConvert.DeserializeObject<Snapshot>(await message.Content.ReadAsStringAsync());
+                apiResponse = new(deserializedTemp);
+                this._logger.LogInformation($"{JsonConvert.SerializeObject(apiResponse)}");
+            }
+
+            return apiResponse;
         }
 
-        private OpenTransaction? GetTransactionById(string id, out bool? isBuy)
+        private async Task<OpenCloseTradeResponse> OpenHedgeTransaction(TradersViewBuySellRequest data)
         {
-            foreach ( var transaction in this.Transactions)
+            string name = data._symbol.ticker;
+            bool isBuy = data._is_buy == "buy";
+            double amount = data._contracts.orders;
+
+            OpenCloseTradeResponse response;
+            IEnumerable<SR_OpenPosition> openPositions = (await GetOpenPositionSnapshot()).OpenPositions
+                .Where(op => (string)op.OpenOrderRequestTXT == this.HedgeDifferentiator)
+                .Where(op => (string)op.currency == name)
+                .Where(op => (bool)op.isBuy != isBuy);
+
+            if (openPositions.Any())
             {
-                if (transaction.SellOrders.ContainsKey(id))
+                Dictionary<string, bool> transactionsClosed = new();
+
+                foreach (var position in openPositions)
                 {
-                    isBuy = false;
-                    return transaction;
+                    OpenCloseTradeResponse closeTradeResp = await CloseTrade(position.tradeId, position.amountK);
+                    transactionsClosed.Add(position.tradeId, (closeTradeResp?.response?.executed) ?? false);
                 }
-                if (transaction.BuyOrders.ContainsKey(id))
-                {
-                    isBuy = true;
-                    return transaction;
-                }
-            }
+                OpenCloseTradeResponse openTradeResp = await OpenRegularTrade(data);
+                string openTransactionId = openTradeResp.response.executed ? openTradeResp.data.orderId : "-1";
 
-            isBuy = null;
-            return null;
-        }
+                bool allCloseExecuted = transactionsClosed.All(x => x.Value);
+                bool anyCloseExecuted = transactionsClosed.Any(x => x.Value);
 
-        private void AddTransaction(string name, bool isBuy, string orderId, double amount)
-        {
-            OpenTransaction? existingTransaction = GetTransaction(name);
-            if (existingTransaction == null) 
-            {
-                if (isBuy) this.Transactions.Add(new OpenTransaction(name, new() { { orderId, amount } }, new()));
-                else this.Transactions.Add(new OpenTransaction(name, new(), new() { { orderId, amount } }));
+                bool executed = openTradeResp.response.executed || allCloseExecuted;
+                ResponseType responseCode = GetResponseType(openTradeResp.response.executed, allCloseExecuted, anyCloseExecuted);
+                string ct = $"closedTransactions: {JsonConvert.SerializeObject(transactionsClosed)}";
+
+                response = PrepareOpenCloseTradeResponse(executed, (int)responseCode, openTransactionId, ct);
             }
             else
             {
-                if (isBuy) existingTransaction.BuyOrders.Add(orderId, amount );
-                else existingTransaction.SellOrders.Add(orderId, amount);
-            }
+                response = await OpenRegularTrade(data);
+                if (!response.response.executed || response.data == null)
+                    return response;
+            }          
+
+            return response;
         }
 
-        private void RemoveTransaction(string orderId, string? name = null, bool? isBuy = null)
+        private static ResponseType GetResponseType(bool executed, bool allCloseExecuted, bool anyCloseExecuted)
         {
-            OpenTransaction? existingTransaction;
-
-            if (string.IsNullOrWhiteSpace(name) || !isBuy.HasValue)
-            {
-                existingTransaction = GetTransactionById(orderId, out isBuy);
-            }
-            else
-            {
-                existingTransaction = GetTransaction(name);
-            }
-
-            if (existingTransaction == null || !isBuy.HasValue)
-            {
-                return;
-            }
-            else
-            {
-                if (isBuy.Value) existingTransaction.BuyOrders.Remove(orderId);
-                else existingTransaction.SellOrders.Remove(orderId);
-            }
+            return executed
+                ? allCloseExecuted ? ResponseType.AllCorrect : anyCloseExecuted
+                    ? ResponseType.CreateCorrectClosePartiallyFailed : ResponseType.CreateCorrectCloseFailed
+                : allCloseExecuted ? ResponseType.CreateFailedCloseCorrect : allCloseExecuted
+                    ? ResponseType.CreateFailedClosePartiallyFailed : ResponseType.AllFailed;
         }
 
-        private void RemoveTransactionBySymbol(string name)
+        private async Task<OpenCloseTradeResponse> OpenRegularTrade(TradersViewBuySellRequest data)
         {
-            OpenTransaction? existingTransaction = GetTransaction(name);
-            if (existingTransaction != null)
+            BrokerOpenTradeMessage requestBody = new(this.AccountId.ToString(), this.OrderType,
+                                                        this.TimeInForce, data);
+
+            HttpRequestMessage request = new()
             {
-                existingTransaction.BuyOrders.Clear();
-                existingTransaction.SellOrders.Clear();
-                this.Transactions.Remove(existingTransaction);
-            }            
+                Method = HttpMethod.Post,
+                RequestUri = new Uri($"{this.BaseUrl}{OPEN_TRADE_PATH}"),
+                Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
+            };
+            SetHeaders();
+            HttpResponseMessage? message = await this.Client.SendAsync(request);
+
+            return await HandleBrokersResponse(message);
         }
 
         private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message, string additionalInfo = "")

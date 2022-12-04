@@ -9,6 +9,7 @@
         public string OrderType { get; set; }
         public string RequestText { get; set; }
         public string TimeInForce { get; set; }
+        public bool IsHedge { get; set; }
 
         public BrokerOpenTradeMessage(string accountId, string orderType, string timeInForce, TradersViewBuySellRequest reqBody)
         {
@@ -23,6 +24,7 @@
             this.OrderType      = orderType;                                                // something 
             this.TimeInForce    = timeInForce;                                              // something
             this.RequestText    = reqBody._comment;                                         // doesn"t really matter prob like a logging thing
+            this.IsHedge        = reqBody._is_hedge;                                        // for differentiating types of trade
         }
 
         public IEnumerable<KeyValuePair<string,string>> ToKeyValuePairs()
