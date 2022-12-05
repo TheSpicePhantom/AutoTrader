@@ -35,12 +35,12 @@
     
     public class SnapshotResponse
     {
-        public List<SR_OpenPosition> OpenPositions { get; set; }
+        public IEnumerable<SR_OpenPosition> OpenPositions { get; set; }
         public string Message { get; set; }
 
         public SnapshotResponse(Snapshot? snapshot = null, string message = "")
         {
-            OpenPositions = snapshot != null ? snapshot.open_positions.ToList() : new List<SR_OpenPosition>();
+            OpenPositions = snapshot != null ? snapshot.open_positions.Where(op => string.IsNullOrWhiteSpace(op.tradeId)) : new List<SR_OpenPosition>();
             Message = message;
         }
     }
