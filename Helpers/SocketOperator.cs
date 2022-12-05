@@ -25,7 +25,7 @@ namespace AutoTrader.Helpers
         private const string CLOSE_ALL_FOR_SYMBOL_PATH  = "/trading/close_all_for_symbol";
         private const string GET_OPEN_POSITIONS_PATH    = "/trading/get_model/?models=OpenPosition";
 
-        private readonly string HedgeDifferentiator     = "HEDGE";
+        private const string HEDGE_DIFFERENTIATOR       = "HEDGE";
 
         public bool IsRunning { get; private set; } = true;
         public bool IsClientSetUp { get; private set; } = false;
@@ -53,7 +53,6 @@ namespace AutoTrader.Helpers
             this.AccountId = this._config.GetValue<string>("accountId");
             this.OrderType = this._config.GetValue<string>("orderType");
             this.TimeInForce = this._config.GetValue<string>("timeInForce");
-            this.HedgeDifferentiator = this._config.GetValue<string>("HedgeDifferentiator");
 
             SetUpClient();
             SocketSetUp();
@@ -62,7 +61,7 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> OpenTrade(TradersViewBuySellRequest data)
         {
-            if (data._is_hedge)
+            if (data._isHedge)
                 return await OpenHedgeTransaction(data);
             else
                 return await OpenRegularTrade(data);
@@ -189,7 +188,7 @@ namespace AutoTrader.Helpers
 
             OpenCloseTradeResponse response;
             IEnumerable<SR_OpenPosition> openPositions = (await GetOpenPositionSnapshot()).OpenPositions
-                .Where(op => op.OpenOrderRequestTXT == this.HedgeDifferentiator)
+                .Where(op => op.OpenOrderRequestTXT.Contains(HEDGE_DIFFERENTIATOR))
                 .Where(op => op.currency == name)
                 .Where(op => op.isBuy != isBuy);
 
