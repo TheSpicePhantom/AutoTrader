@@ -40,7 +40,7 @@
 
         public SnapshotResponse(Snapshot? snapshot = null, string message = "")
         {
-            OpenPositions = snapshot != null ? snapshot.open_positions.Where(op => string.IsNullOrWhiteSpace(op.tradeId)) : new List<SR_OpenPosition>();
+            OpenPositions = snapshot != null ? snapshot.open_positions.Where(op => !string.IsNullOrWhiteSpace(op.tradeId)) : new List<SR_OpenPosition>();
             Message = message;
         }
     }
