@@ -189,9 +189,9 @@ namespace AutoTrader.Helpers
 
             OpenCloseTradeResponse response;
             IEnumerable<SR_OpenPosition> openPositions = (await GetOpenPositionSnapshot()).OpenPositions
-                .Where(op => (string)op.OpenOrderRequestTXT == this.HedgeDifferentiator)
-                .Where(op => (string)op.currency == name)
-                .Where(op => (bool)op.isBuy != isBuy);
+                .Where(op => op.OpenOrderRequestTXT == this.HedgeDifferentiator)
+                .Where(op => op.currency == name)
+                .Where(op => op.isBuy != isBuy);
 
             if (openPositions.Any())
             {
@@ -199,7 +199,7 @@ namespace AutoTrader.Helpers
 
                 foreach (var position in openPositions)
                 {
-                    OpenCloseTradeResponse closeTradeResp = await CloseTrade(position.tradeId, position.amountK);
+                    OpenCloseTradeResponse closeTradeResp = await CloseTrade(position.tradeId, position.amountK * 1000 );
                     transactionsClosed.Add(position.tradeId, (closeTradeResp?.response?.executed) ?? false);
                 }
                 OpenCloseTradeResponse openTradeResp = await OpenRegularTrade(data);
