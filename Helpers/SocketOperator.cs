@@ -61,6 +61,8 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> OpenTrade(TradersViewBuySellRequest data)
         {
+            this._logger.LogInformation("OpenTrade requested");
+
             if (data._isHedge)
                 return await OpenHedgeTransaction(data);
             else
@@ -69,11 +71,15 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseTrade(CloseTradeRequest data)
         {
+            this._logger.LogInformation("CloseTrade requested");
+
             return await CloseTrade(data.tradeId, data.amount);
         }
 
         public async Task<OpenCloseTradeResponse> CloseTrade(CloseTradeMultipleRequest data)
         {
+            this._logger.LogInformation("CloseTradeMultiple requested");
+
             Dictionary<string, bool> transactionsClosed = new();
 
             foreach (var t in data.tradeIdAmountPairs)
@@ -96,6 +102,8 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseTrade(string tradeId, double amount)
         {
+            this._logger.LogInformation("CloseTrade2 requested");
+
             BrokerCloseTradeMessage requestBody = new(this.OrderType, this.TimeInForce, 
                                                         tradeId, null, null, amount);
 
@@ -106,6 +114,8 @@ namespace AutoTrader.Helpers
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
 
+            this._logger.LogInformation($"sending CloseTrade request: {request}");
+
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
@@ -114,6 +124,8 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseAllForSymbol(string symbol)
         {
+            this._logger.LogInformation("CloseAllForSymbol requested");
+
             BrokerCloseAllForSymbolMessage requestBody = new(this.AccountId, symbol, this.OrderType, this.TimeInForce);
 
             HttpRequestMessage request = new()
@@ -123,6 +135,8 @@ namespace AutoTrader.Helpers
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
 
+            this._logger.LogInformation($"sending CloseAllForSymbol request: {request}");
+
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
@@ -131,11 +145,16 @@ namespace AutoTrader.Helpers
 
         public async Task<string> GetInstruments()
         {
+            this._logger.LogInformation("GetInstruments requested");
+
             HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Get,
                 RequestUri = new Uri($"{this.BaseUrl}{GET_INSTRUMENTS_PATH}"),
             };
+
+            this._logger.LogInformation($"sending GetInstruments request: {request}");
+
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
@@ -156,11 +175,15 @@ namespace AutoTrader.Helpers
 
         public async Task<SnapshotResponse> GetOpenPositionSnapshot()
         {
+            this._logger.LogInformation("GetOpenPositionSnapshot requested");
             HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Get,
                 RequestUri = new Uri($"{this.BaseUrl}{GET_OPEN_POSITIONS_PATH}"),
             };
+
+            this._logger.LogInformation($"sending GetOpenPositionSnapshot request: {request}");
+
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
@@ -182,6 +205,8 @@ namespace AutoTrader.Helpers
 
         private async Task<OpenCloseTradeResponse> OpenHedgeTransaction(TradersViewBuySellRequest data)
         {
+            this._logger.LogInformation("OpenHedgeTransaction requested");
+
             string name = data._symbol.ticker;
             bool isBuy = data._is_buy == "buy";
             double amount = data._contracts.orders;
@@ -223,17 +248,11 @@ namespace AutoTrader.Helpers
             return response;
         }
 
-        private static ResponseType GetResponseType(bool executed, bool allCloseExecuted, bool anyCloseExecuted)
-        {
-            return executed
-                ? allCloseExecuted ? ResponseType.AllCorrect : anyCloseExecuted
-                    ? ResponseType.CreateCorrectClosePartiallyFailed : ResponseType.CreateCorrectCloseFailed
-                : allCloseExecuted ? ResponseType.CreateFailedCloseCorrect : allCloseExecuted
-                    ? ResponseType.CreateFailedClosePartiallyFailed : ResponseType.AllFailed;
-        }
-
         private async Task<OpenCloseTradeResponse> OpenRegularTrade(TradersViewBuySellRequest data)
         {
+            this._logger.LogInformation("OpenRegularTrade requested");
+
+
             BrokerOpenTradeMessage requestBody = new(this.AccountId.ToString(), this.OrderType,
                                                         this.TimeInForce, data);
 
@@ -247,6 +266,15 @@ namespace AutoTrader.Helpers
             HttpResponseMessage? message = await this.Client.SendAsync(request);
 
             return await HandleBrokersResponse(message);
+        }
+
+        private static ResponseType GetResponseType(bool executed, bool allCloseExecuted, bool anyCloseExecuted)
+        {
+            return executed
+                ? allCloseExecuted ? ResponseType.AllCorrect : anyCloseExecuted
+                    ? ResponseType.CreateCorrectClosePartiallyFailed : ResponseType.CreateCorrectCloseFailed
+                : allCloseExecuted ? ResponseType.CreateFailedCloseCorrect : allCloseExecuted
+                    ? ResponseType.CreateFailedClosePartiallyFailed : ResponseType.AllFailed;
         }
 
         private async Task<OpenCloseTradeResponse> HandleBrokersResponse(HttpResponseMessage? message, string additionalInfo = "")
