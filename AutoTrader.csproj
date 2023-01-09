@@ -4,6 +4,8 @@
     <TargetFramework>net6.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
+    <ApplicationInsightsResourceId>/subscriptions/74108351-b4d2-4481-b423-dcb3d1f6cf35/resourceGroups/Server/providers/microsoft.insights/components/Autotrader16</ApplicationInsightsResourceId>
+    <UserSecretsId>e5eff4e4-ea3e-4a9f-aaec-04a0e9b1fd50</UserSecretsId>
   </PropertyGroup>
 
   <ItemGroup>

@@ -61,7 +61,7 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> OpenTrade(TradersViewBuySellRequest data)
         {
-            this._logger.LogTrace("OpenTrade requested");
+            this._logger.LogInformation("OpenTrade requested");
 
             if (data._isHedge)
                 return await OpenHedgeTransaction(data);
@@ -71,14 +71,14 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseTrade(CloseTradeRequest data)
         {
-            this._logger.LogTrace("CloseTrade requested");
+            this._logger.LogInformation("CloseTrade requested");
 
             return await CloseTrade(data.tradeId, data.amount);
         }
 
         public async Task<OpenCloseTradeResponse> CloseTrade(CloseTradeMultipleRequest data)
         {
-            this._logger.LogTrace("CloseTradeMultiple requested");
+            this._logger.LogInformation("CloseTradeMultiple requested");
 
             Dictionary<string, bool> transactionsClosed = new();
 
@@ -102,7 +102,7 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseTrade(string tradeId, double amount)
         {
-            this._logger.LogTrace("CloseTrade2 requested");
+            this._logger.LogInformation("CloseTrade2 requested");
 
             BrokerCloseTradeMessage requestBody = new(this.OrderType, this.TimeInForce, 
                                                         tradeId, null, null, amount);
@@ -114,7 +114,7 @@ namespace AutoTrader.Helpers
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
 
-            this._logger.LogTrace($"sending CloseTrade request: {request}");
+            this._logger.LogInformation($"sending CloseTrade request: {request}");
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -124,7 +124,7 @@ namespace AutoTrader.Helpers
 
         public async Task<OpenCloseTradeResponse> CloseAllForSymbol(string symbol)
         {
-            this._logger.LogTrace("CloseAllForSymbol requested");
+            this._logger.LogInformation("CloseAllForSymbol requested");
 
             BrokerCloseAllForSymbolMessage requestBody = new(this.AccountId, symbol, this.OrderType, this.TimeInForce);
 
@@ -135,7 +135,7 @@ namespace AutoTrader.Helpers
                 Content = new FormUrlEncodedContent(requestBody.ToKeyValuePairs())
             };
 
-            this._logger.LogTrace($"sending CloseAllForSymbol request: {request}");
+            this._logger.LogInformation($"sending CloseAllForSymbol request: {request}");
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -145,7 +145,7 @@ namespace AutoTrader.Helpers
 
         public async Task<string> GetInstruments()
         {
-            this._logger.LogTrace("GetInstruments requested");
+            this._logger.LogInformation("GetInstruments requested");
 
             HttpRequestMessage request = new()
             {
@@ -153,7 +153,7 @@ namespace AutoTrader.Helpers
                 RequestUri = new Uri($"{this.BaseUrl}{GET_INSTRUMENTS_PATH}"),
             };
 
-            this._logger.LogTrace($"sending GetInstruments request: {request}");
+            this._logger.LogInformation($"sending GetInstruments request: {request}");
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -162,12 +162,12 @@ namespace AutoTrader.Helpers
             if (message == null || !message.IsSuccessStatusCode || message.Content == null)
             {
                 apiResponse = $"request failed: {message}";
-                this._logger.LogTrace($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
             }
             else
             {
                 apiResponse = await message.Content.ReadAsStringAsync();
-                this._logger.LogTrace($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
             }
 
             return apiResponse;
@@ -175,14 +175,14 @@ namespace AutoTrader.Helpers
 
         public async Task<SnapshotResponse> GetOpenPositionSnapshot()
         {
-            this._logger.LogTrace("GetOpenPositionSnapshot requested");
+            this._logger.LogInformation("GetOpenPositionSnapshot requested");
             HttpRequestMessage request = new()
             {
                 Method = HttpMethod.Get,
                 RequestUri = new Uri($"{this.BaseUrl}{GET_OPEN_POSITIONS_PATH}"),
             };
 
-            this._logger.LogTrace($"sending GetOpenPositionSnapshot request: {request}");
+            this._logger.LogInformation($"sending GetOpenPositionSnapshot request: {request}");
 
             SetHeaders();
             HttpResponseMessage? message = await this.Client.SendAsync(request);
@@ -191,13 +191,13 @@ namespace AutoTrader.Helpers
             if (message == null || !message.IsSuccessStatusCode || message.Content == null)
             {
                 apiResponse = new(null, $"request failed: {message}");
-                this._logger.LogTrace($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)}");
             }
             else
             {
                 Snapshot? deserializedTemp = JsonConvert.DeserializeObject<Snapshot>(await message.Content.ReadAsStringAsync());
                 apiResponse = new(deserializedTemp);
-                this._logger.LogTrace($"{JsonConvert.SerializeObject(apiResponse)}");
+                this._logger.LogInformation($"{JsonConvert.SerializeObject(apiResponse)}");
             }
 
             return apiResponse;
@@ -205,7 +205,7 @@ namespace AutoTrader.Helpers
 
         private async Task<OpenCloseTradeResponse> OpenHedgeTransaction(TradersViewBuySellRequest data)
         {
-            this._logger.LogTrace("OpenHedgeTransaction requested");
+            this._logger.LogInformation("OpenHedgeTransaction requested");
 
             string name = data._symbol.ticker;
             bool isBuy = data._is_buy == "buy";
@@ -250,7 +250,7 @@ namespace AutoTrader.Helpers
 
         private async Task<OpenCloseTradeResponse> OpenRegularTrade(TradersViewBuySellRequest data)
         {
-            this._logger.LogTrace("OpenRegularTrade requested");
+            this._logger.LogInformation("OpenRegularTrade requested");
 
 
             BrokerOpenTradeMessage requestBody = new(this.AccountId.ToString(), this.OrderType,
@@ -283,13 +283,13 @@ namespace AutoTrader.Helpers
             if (message == null || !message.IsSuccessStatusCode || message.Content == null)
             {
                 apiResponse = PrepareErrorMessage(message);
-                this._logger.LogTrace($"BROKER: {JsonConvert.SerializeObject(apiResponse)};\n{additionalInfo}");
+                this._logger.LogInformation($"BROKER: {JsonConvert.SerializeObject(apiResponse)};\n{additionalInfo}");
             }
             else
             {
                 OpenCloseTradeResponse? deserializedTemp = JsonConvert.DeserializeObject<OpenCloseTradeResponse>(await message.Content.ReadAsStringAsync());
                 apiResponse = deserializedTemp ?? PrepareErrorMessage(message);
-                this._logger.LogTrace($"{JsonConvert.SerializeObject(apiResponse)};\n{ additionalInfo}");
+                this._logger.LogInformation($"{JsonConvert.SerializeObject(apiResponse)};\n{ additionalInfo}");
             }
 
             return apiResponse;
@@ -334,7 +334,7 @@ namespace AutoTrader.Helpers
         private void SocketClose()
         {
             this.Socket.DisconnectAsync().GetAwaiter().GetResult();
-            this._logger.LogTrace("Socket closed.");
+            this._logger.LogInformation("Socket closed.");
         }
 
         public void SetHeaders()
@@ -377,14 +377,14 @@ namespace AutoTrader.Helpers
         {
             this.BearerToken = $"{Socket.Id}{this.Token}";
             SetAuthHeader();
-            this._logger.LogTrace($"connected: {this.Socket.Connected}.");
-            this._logger.LogTrace($"token: {this.BearerToken}.");
+            this._logger.LogInformation($"connected: {this.Socket.Connected}.");
+            this._logger.LogInformation($"token: {this.BearerToken}.");
             this.IsSocketSetUp = true;
         }
 
         private void OnSocketDisconnected(object? sender, string e)
         {
-            this._logger.LogTrace($"Socket Disconnected: {sender} ;{e}");
+            this._logger.LogInformation($"Socket Disconnected: {sender} ;{e}");
             if (this.IsRunning) SocketSetUp();
         }
 
