@@ -20,7 +20,7 @@
             IList<KeyValuePair<string, string>> kvpairs = new List<KeyValuePair<string, string>>()
             {
                 new("account_id"    , this.AccountId),
-                new("for_Symbol"     , true.ToString()),
+                new("for_symbol"     , true.ToString()),
                 new("symbol"        , this.Symbol),
                 new("order_type"    , this.OrderType),
                 new("time_in_force" , this.TimeInForce)
