@@ -15,4 +15,10 @@
     <PackageReference Include="SocketIOClient" Version="3.0.6" />
     <PackageReference Include="Microsoft.ApplicationInsights.AspNetCore" Version="2.21.0" />
   </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="fxcore2">
+      <HintPath>lib\fxcore2.dll</HintPath>
+    </Reference>
+  </ItemGroup>
 </Project>
